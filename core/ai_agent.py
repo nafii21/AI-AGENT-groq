@@ -1,4 +1,5 @@
 import json
+import re
 from groq import Groq
 import config
 
@@ -44,13 +45,18 @@ def validate_setup(setup: dict) -> dict:
     )
 
     text = completion.choices[0].message.content.strip()
-    # Strip markdown fences if model ever returns them.
-    if text.startswith("```"):
-        text = text.strip("`")
-        if text.startswith("json"):
-            text = text[4:].strip()
 
-    data = json.loads(text)
+    # Ekstrak substring JSON menggunakan Regex untuk keamanan ekstra
+    match = re.search(r"\{.*\}", text, re.DOTALL)
+    if not match:
+        raise ValueError(f"Failed to find JSON object in Groq response: {text}")
+
+    json_str = match.group(0)
+
+    try:
+        data = json.loads(json_str)
+    except json.JSONDecodeError as e:
+        raise ValueError(f"Invalid JSON format from Groq: {text}") from e
 
     required = {"decision", "confidence", "direction", "reason", "risk_note"}
     missing = required - set(data)
