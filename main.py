@@ -8,7 +8,7 @@ from core.daily_poi import build_pois, price_in_poi
 from core.engulfing import detect
 from core.ai_agent import validate_setup
 from core.state import load_state, save_state, reset_if_new_day
-from telegram.bot import send_message
+from telegram.bot import send_message, process_incoming_updates
 
 def fmt(x):
     return f"{float(x):.2f}"
@@ -20,21 +20,21 @@ def format_signal(setup, ai):
     direction = ai["direction"]
 
     return (
-        f"🟡 XAU/USD | M15 SETUP\\n\\n"
-        f"📍 DAILY POI\\n"
-        f"{p['kind']} | {p['direction']}\\n"
-        f"Zone: {fmt(p['low'])} - {fmt(p['high'])}\\n"
-        f"Source: {p['source_time']}\\n\\n"
-        f"📊 PRICE ACTION\\n"
-        f"{e['type']}\\n"
-        f"M15 close: {fmt(c['close'])}\\n"
-        f"Candle: {c['datetime']}\\n\\n"
-        f"🧠 AI VALIDATION\\n"
-        f"Decision: {ai['decision']}\\n"
-        f"Direction: {direction}\\n"
-        f"Confidence: {ai['confidence']}%\\n"
-        f"Reason: {ai['reason']}\\n"
-        f"Risk: {ai['risk_note']}\\n\\n"
+        f"📊 XAU/USD | M15 SETUP\n\n"
+        f"📍 DAILY POI\n"
+        f"{p['kind']} | {p['direction']}\n"
+        f"Zone: {fmt(p['low'])} - {fmt(p['high'])}\n"
+        f"Source: {p['source_time']}\n\n"
+        f"📈 PRICE ACTION\n"
+        f"{e['type']}\n"
+        f"M15 close: {fmt(c['close'])}\n"
+        f"Candle: {c['datetime']}\n\n"
+        f"🧠 AI VALIDATION\n"
+        f"Decision: {ai['decision']}\n"
+        f"Direction: {direction}\n"
+        f"Confidence: {ai['confidence']}%\n"
+        f"Reason: {ai['reason']}\n"
+        f"Risk: {ai['risk_note']}\n\n"
         f"Signals today: {setup['signals_today']}/{config.MAX_TRADES_PER_DAY}"
     )
 
@@ -43,7 +43,12 @@ def scan_once(state):
     pois = build_pois(daily)
 
     m15 = get_m15()
-    closed = m15[m15["datetime"] + pd.Timedelta(minutes=15) <= pd.Timestamp.now(tz="UTC")].copy()
+    
+    # Pastikan format UTC konsisten untuk mencegah perbandingan tz-naive vs tz-aware
+    m15["datetime"] = pd.to_datetime(m15["datetime"], utc=True)
+    now_utc = pd.Timestamp.now(tz="UTC")
+    closed = m15[m15["datetime"] + pd.Timedelta(minutes=15) <= now_utc].copy()
+    
     if len(closed) < 2:
         return state
 
@@ -72,7 +77,7 @@ def scan_once(state):
 
     poi = active[0]
 
-    # Direction coherence before spending Groq tokens.
+    # Direction coherence check sebelum konsumsi token Groq
     expected = "BUY" if poi.direction == "BULLISH" else "SELL"
     detected_direction = "BUY" if engulf["type"] == "BULLISH_ENGULFING" else "SELL"
     if expected != detected_direction:
@@ -115,10 +120,10 @@ def scan_once(state):
         send_message(format_signal(setup, ai))
     else:
         send_message(
-            f"⚪ XAU/USD | SETUP REJECTED\\n"
-            f"POI: {poi.kind} {poi.direction}\\n"
-            f"PA: {engulf['type']}\\n"
-            f"AI: {ai['decision']} | {ai['confidence']}%\\n"
+            f"❌ XAU/USD | SETUP REJECTED\n"
+            f"POI: {poi.kind} {poi.direction}\n"
+            f"PA: {engulf['type']}\n"
+            f"AI: {ai['decision']} | {ai['confidence']}%\n"
             f"Reason: {ai['reason']}"
         )
 
@@ -147,8 +152,14 @@ def main():
     while True:
         try:
             state = reset_if_new_day(state)
-            save_state(state)
+            
+            # 1. Cek & respon perintah dari Telegram (/start atau /status)
+            state = process_incoming_updates(state)
+            
+            # 2. Jalankan scanner strategi & AI
             state = scan_once(state)
+            
+            save_state(state)
         except Exception as exc:
             print(f"[ERROR] {exc}")
             traceback.print_exc()
