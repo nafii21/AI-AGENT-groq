@@ -3,10 +3,10 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
-TWELVE_DATA_API_KEY = os.getenv("TWELVE_DATA_API_KEY", "")
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
-TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
+GROQ_API_KEY = os.getenv("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", "")
+TWELVE_DATA_API_KEY = os.getenv("593b71515ffe46949594924edbc952e6", "")
+TELEGRAM_BOT_TOKEN = os.getenv("8806108760:AAF7NJUz1I3unPAMg7v5hSvAlAJ34PYi5G4", "")
+TELEGRAM_CHAT_ID = os.getenv("6273206309", "")
 
 SYMBOL = os.getenv("SYMBOL", "XAU/USD")
 TIMEZONE = os.getenv("TIMEZONE", "UTC")
